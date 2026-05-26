@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: digital-bank-api
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/digital_bank}
+    username: ${DB_USERNAME:digital_bank}
+    password: ${DB_PASSWORD:digital_bank}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+  sql:
+    init:
+      mode: always
+server:
+  port: ${SERVER_PORT:8080}
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
