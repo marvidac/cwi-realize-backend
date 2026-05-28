@@ -2,9 +2,12 @@ package br.com.realize.digitalbank.api;
 
 import br.com.realize.digitalbank.api.dto.AccountResponse;
 import br.com.realize.digitalbank.api.dto.CreateAccountRequest;
+import br.com.realize.digitalbank.config.OpenApiConfig;
 import br.com.realize.digitalbank.service.AccountService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -13,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/accounts")
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 public class AccountController {
 
     private final AccountService accountService;
@@ -36,7 +40,7 @@ public class AccountController {
 
     @GetMapping
     @Operation(summary = "Lista contas cadastradas")
-    public Page<AccountResponse> findAll(@PageableDefault(size = 20, sort = "id") Pageable pageable) {
+    public Page<AccountResponse> findAll(@ParameterObject @PageableDefault(size = 20, sort = "id") Pageable pageable) {
         return accountService.findAll(pageable).map(AccountResponse::from);
     }
 }

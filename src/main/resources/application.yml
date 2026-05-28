@@ -2,7 +2,7 @@ spring:
   application:
     name: digital-bank-api
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/digital_bank}
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/digital_bank}
     username: ${DB_USERNAME:digital_bank}
     password: ${DB_PASSWORD:digital_bank}
   jpa:
