@@ -7,6 +7,8 @@ import br.com.realize.digitalbank.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 import java.time.OffsetDateTime;
 
@@ -39,8 +41,18 @@ public class AuthService {
         String token = accessTokenService.generateToken();
         OffsetDateTime expiresAt = OffsetDateTime.now().plusHours(TOKEN_EXPIRATION_HOURS);
 
-        user.updateCurrentToken(accessTokenService.hashToken(token), expiresAt);
+        try {
+            user.updateCurrentToken(accessTokenService.hashToken(token), expiresAt);
+            return new TokenResponse(token, "Bearer", expiresAt);
+        } catch (RuntimeException exception) {
+            markCurrentTransactionForRollback();
+            throw new PersistenceOperationException("Falha ao persistir o token de autenticação. Nenhuma alteração deve permanecer gravada.", exception);
+        }
+    }
 
-        return new TokenResponse(token, "Bearer", expiresAt);
+    private void markCurrentTransactionForRollback() {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+        }
     }
 }

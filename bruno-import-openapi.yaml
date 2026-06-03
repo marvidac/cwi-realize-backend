@@ -1,0 +1,695 @@
+openapi: 3.0.3
+info:
+  title: Digital Bank API - CWI Realize Backend
+  version: 0.0.1-SNAPSHOT
+  description: |
+    Arquivo OpenAPI para importação no Bruno.
+
+    Projeto: cwi-realize-backend / digital-bank-api.
+    Stack: Java 17, Spring Boot 3.3.5, PostgreSQL, Spring Security stateless por Bearer token.
+
+    Como usar no Bruno:
+    1. Suba o banco com `docker compose up -d`.
+    2. Suba a aplicação com `mvn spring-boot:run`.
+    3. No Bruno, importe este arquivo como OpenAPI.
+    4. Execute `POST /api/auth/login` usando o usuário de teste.
+    5. Copie `accessToken` para a variável `access_token` ou configure Bearer Auth no Bruno.
+
+    Usuário de teste criado automaticamente pela aplicação/DataInitializer:
+    - username: usuario.teste
+    - password: senha-segura
+
+    Endpoints protegidos exigem:
+    Authorization: Bearer {{access_token}}
+servers:
+  - url: http://localhost:8080
+    description: Execução local padrão da aplicação
+  - url: http://localhost:{{server_port}}
+    description: Execução local usando variável Bruno server_port
+
+tags:
+  - name: Auth
+    description: Autenticação e geração de token de acesso
+  - name: Accounts
+    description: Cadastro e consulta de contas bancárias
+  - name: Movements
+    description: Consulta de movimentações financeiras por conta
+  - name: Transfers
+    description: Transferência de valores entre contas
+  - name: OpenAPI
+    description: Documentação gerada pela própria aplicação
+
+paths:
+  /api/auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Autentica usuário e retorna token de acesso
+      description: |
+        Endpoint público. Valida username/password contra a tabela users e retorna token Bearer.
+        O token é retornado somente na resposta do login; na base fica salvo apenas o hash SHA-256 do token ativo.
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              usuarioTeste:
+                summary: Login com usuário criado automaticamente
+                value:
+                  username: usuario.teste
+                  password: senha-segura
+      responses:
+        '200':
+          description: Login realizado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+              examples:
+                sucesso:
+                  value:
+                    accessToken: token-gerado-no-login
+                    tokenType: Bearer
+                    expiresAt: '2026-05-26T12:00:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Credenciais inválidas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalido:
+                  value:
+                    timestamp: '2026-06-02T12:00:00Z'
+                    status: 401
+                    error: Unauthorized
+                    messages:
+                      - Credenciais inválidas
+
+  /api/accounts:
+    post:
+      tags:
+        - Accounts
+      summary: Cria uma nova conta
+      description: |
+        Cria conta bancária com nome do cliente e saldo inicial.
+        Protegido por Bearer token.
+      operationId: createAccount
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAccountRequest'
+            examples:
+              maria:
+                summary: Conta com saldo inicial
+                value:
+                  customerName: Maria Silva
+                  initialBalance: 1000.00
+              joao:
+                summary: Conta sem saldo inicial
+                value:
+                  customerName: João Santos
+                  initialBalance: 0.00
+      responses:
+        '201':
+          description: Conta criada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponse'
+              examples:
+                criada:
+                  value:
+                    id: 4
+                    customerName: Maria Silva
+                    balance: 1000.00
+                    createdAt: '2026-06-02T12:00:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    get:
+      tags:
+        - Accounts
+      summary: Lista contas cadastradas
+      description: |
+        Retorna página de contas cadastradas.
+        Usa paginação padrão do Spring: page, size e sort.
+      operationId: findAllAccounts
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - $ref: '#/components/parameters/SortParam'
+      responses:
+        '200':
+          description: Página de contas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageAccountResponse'
+              examples:
+                pagina:
+                  value:
+                    content:
+                      - id: 1
+                        customerName: Ana Souza
+                        balance: 1000.00
+                        createdAt: '2026-06-02T12:00:00Z'
+                      - id: 2
+                        customerName: Bruno Lima
+                        balance: 500.00
+                        createdAt: '2026-06-02T12:00:00Z'
+                    pageable:
+                      pageNumber: 0
+                      pageSize: 20
+                    totalElements: 2
+                    totalPages: 1
+                    last: true
+                    first: true
+                    size: 20
+                    number: 0
+                    numberOfElements: 2
+                    empty: false
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/accounts/{id}:
+    get:
+      tags:
+        - Accounts
+      summary: Consulta uma conta por ID
+      description: Consulta os dados da conta e saldo atual.
+      operationId: findAccountById
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID da conta
+          schema:
+            type: integer
+            format: int64
+          example: 1
+      responses:
+        '200':
+          description: Conta encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponse'
+              examples:
+                ana:
+                  value:
+                    id: 1
+                    customerName: Ana Souza
+                    balance: 1000.00
+                    createdAt: '2026-06-02T12:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/accounts/{accountId}/movements:
+    get:
+      tags:
+        - Movements
+      summary: Consulta movimentações financeiras de uma conta
+      description: |
+        Lista movimentos de débito/crédito associados a uma conta.
+        O controller usa paginação padrão com size default 20 e sort default createdAt.
+      operationId: findMovementsByAccount
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          description: ID da conta
+          schema:
+            type: integer
+            format: int64
+          example: 1
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - name: sort
+          in: query
+          required: false
+          description: 'Ordenação. Default do controller: createdAt.'
+          schema:
+            type: string
+          example: createdAt,desc
+      responses:
+        '200':
+          description: Página de movimentações
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageMovementResponse'
+              examples:
+                pagina:
+                  value:
+                    content:
+                      - id: 1
+                        accountId: 1
+                        transferId: 1
+                        type: DEBIT
+                        amount: 100.00
+                        balanceAfter: 900.00
+                        createdAt: '2026-06-02T12:10:00Z'
+                    pageable:
+                      pageNumber: 0
+                      pageSize: 20
+                    totalElements: 1
+                    totalPages: 1
+                    last: true
+                    first: true
+                    size: 20
+                    number: 0
+                    numberOfElements: 1
+                    empty: false
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/transfers:
+    post:
+      tags:
+        - Transfers
+      summary: Realiza transferência de valores entre contas
+      description: |
+        Realiza transferência transacional entre duas contas.
+        Cada transferência gera duas movimentações: débito na origem e crédito no destino.
+        A implementação carrega contas com lock pessimista e em ordem crescente de ID para reduzir risco de deadlock.
+      operationId: transfer
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferRequest'
+            examples:
+              transferencia:
+                summary: Transferência de Ana para Bruno
+                value:
+                  sourceAccountId: 1
+                  targetAccountId: 2
+                  amount: 100.00
+      responses:
+        '201':
+          description: Transferência realizada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferResponse'
+              examples:
+                criada:
+                  value:
+                    id: 1
+                    sourceAccountId: 1
+                    targetAccountId: 2
+                    amount: 100.00
+                    status: COMPLETED
+                    createdAt: '2026-06-02T12:10:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Regra de negócio violada, por exemplo saldo insuficiente ou transferência para mesma conta
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                saldoInsuficiente:
+                  value:
+                    timestamp: '2026-06-02T12:00:00Z'
+                    status: 422
+                    error: Unprocessable Entity
+                    messages:
+                      - Saldo insuficiente
+
+  /swagger-ui.html:
+    get:
+      tags:
+        - OpenAPI
+      summary: Abre Swagger UI
+      description: Interface Swagger UI configurada pelo springdoc.
+      operationId: swaggerUi
+      security: []
+      responses:
+        '200':
+          description: HTML do Swagger UI
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /v3/api-docs:
+    get:
+      tags:
+        - OpenAPI
+      summary: OpenAPI JSON gerado pela aplicação
+      description: Endpoint público do springdoc com contrato OpenAPI vivo da aplicação.
+      operationId: apiDocs
+      security: []
+      responses:
+        '200':
+          description: Documento OpenAPI JSON
+          content:
+            application/json:
+              schema:
+                type: object
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque-token
+      description: 'Token retornado por POST /api/auth/login. Use como Authorization: Bearer {{access_token}}.'
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      required: false
+      description: Índice da página, começando em zero
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+      example: 0
+    SizeParam:
+      name: size
+      in: query
+      required: false
+      description: Quantidade de itens por página
+      schema:
+        type: integer
+        minimum: 1
+        default: 20
+      example: 20
+    SortParam:
+      name: sort
+      in: query
+      required: false
+      description: Ordenação Spring Data no formato campo,direção
+      schema:
+        type: string
+      example: id,asc
+
+  responses:
+    BadRequest:
+      description: Requisição inválida ou falha de validação
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            validacao:
+              value:
+                timestamp: '2026-06-02T12:00:00Z'
+                status: 400
+                error: Bad Request
+                messages:
+                  - customerName não deve estar em branco
+    Unauthorized:
+      description: Token ausente, inválido ou expirado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            semToken:
+              value:
+                timestamp: '2026-06-02T12:00:00Z'
+                status: 401
+                error: Unauthorized
+                messages:
+                  - Token ausente, inválido ou expirado
+    NotFound:
+      description: Recurso não encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            naoEncontrado:
+              value:
+                timestamp: '2026-06-02T12:00:00Z'
+                status: 404
+                error: Not Found
+                messages:
+                  - Recurso não encontrado
+
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 1
+          example: usuario.teste
+        password:
+          type: string
+          minLength: 1
+          format: password
+          example: senha-segura
+
+    TokenResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: Token Bearer gerado no login
+          example: token-gerado-no-login
+        tokenType:
+          type: string
+          example: Bearer
+        expiresAt:
+          type: string
+          format: date-time
+          example: '2026-05-26T12:00:00Z'
+
+    CreateAccountRequest:
+      type: object
+      required:
+        - customerName
+        - initialBalance
+      properties:
+        customerName:
+          type: string
+          minLength: 1
+          example: Maria Silva
+        initialBalance:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 1000.00
+
+    AccountResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        customerName:
+          type: string
+          example: Ana Souza
+        balance:
+          type: number
+          format: decimal
+          example: 1000.00
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-06-02T12:00:00Z'
+
+    TransferRequest:
+      type: object
+      required:
+        - sourceAccountId
+        - targetAccountId
+        - amount
+      properties:
+        sourceAccountId:
+          type: integer
+          format: int64
+          example: 1
+        targetAccountId:
+          type: integer
+          format: int64
+          example: 2
+        amount:
+          type: number
+          format: decimal
+          minimum: 0.01
+          example: 100.00
+
+    TransferResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        sourceAccountId:
+          type: integer
+          format: int64
+          example: 1
+        targetAccountId:
+          type: integer
+          format: int64
+          example: 2
+        amount:
+          type: number
+          format: decimal
+          example: 100.00
+        status:
+          $ref: '#/components/schemas/TransferStatus'
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-06-02T12:10:00Z'
+
+    MovementResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        accountId:
+          type: integer
+          format: int64
+          example: 1
+        transferId:
+          type: integer
+          format: int64
+          example: 1
+        type:
+          $ref: '#/components/schemas/MovementType'
+        amount:
+          type: number
+          format: decimal
+          example: 100.00
+        balanceAfter:
+          type: number
+          format: decimal
+          example: 900.00
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-06-02T12:10:00Z'
+
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-06-02T12:00:00Z'
+        status:
+          type: integer
+          example: 400
+        error:
+          type: string
+          example: Bad Request
+        messages:
+          type: array
+          items:
+            type: string
+          example:
+            - Mensagem de erro
+
+    MovementType:
+      type: string
+      enum:
+        - DEBIT
+        - CREDIT
+      example: DEBIT
+
+    TransferStatus:
+      type: string
+      enum:
+        - COMPLETED
+      example: COMPLETED
+
+    PageAccountResponse:
+      allOf:
+        - $ref: '#/components/schemas/PageMetadata'
+        - type: object
+          properties:
+            content:
+              type: array
+              items:
+                $ref: '#/components/schemas/AccountResponse'
+
+    PageMovementResponse:
+      allOf:
+        - $ref: '#/components/schemas/PageMetadata'
+        - type: object
+          properties:
+            content:
+              type: array
+              items:
+                $ref: '#/components/schemas/MovementResponse'
+
+    PageMetadata:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            type: object
+        pageable:
+          type: object
+          additionalProperties: true
+        totalElements:
+          type: integer
+          format: int64
+          example: 3
+        totalPages:
+          type: integer
+          example: 1
+        last:
+          type: boolean
+          example: true
+        first:
+          type: boolean
+          example: true
+        size:
+          type: integer
+          example: 20
+        number:
+          type: integer
+          example: 0
+        numberOfElements:
+          type: integer
+          example: 3
+        empty:
+          type: boolean
+          example: false

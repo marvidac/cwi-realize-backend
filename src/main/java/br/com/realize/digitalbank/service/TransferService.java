@@ -8,6 +8,8 @@ import br.com.realize.digitalbank.repository.TransferRepository;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 import java.util.List;
 import java.util.Map;
@@ -48,20 +50,28 @@ public class TransferService {
 
         if (source == null) throw new AccountNotFoundException(request.sourceAccountId());
         if (target == null) throw new AccountNotFoundException(request.targetAccountId());
+        if (source.getBalance().compareTo(request.amount()) < 0) throw new InsufficientBalanceException();
 
         try {
             source.debit(request.amount());
-        } catch (IllegalStateException exception) {
-            throw new InsufficientBalanceException();
+            target.credit(request.amount());
+
+            Transfer transfer = transferRepository.save(new Transfer(source, target, request.amount()));
+            movementRepository.save(new Movement(source, transfer, MovementType.DEBIT, request.amount(), source.getBalance()));
+            movementRepository.save(new Movement(target, transfer, MovementType.CREDIT, request.amount(), target.getBalance()));
+
+            eventPublisher.publishEvent(new TransferCompletedEvent(transfer.getId(), source.getId(), target.getId()));
+            return transfer;
+        } catch (RuntimeException exception) {
+            markCurrentTransactionForRollback();
+            throw new PersistenceOperationException("Falha ao persistir a transferência. Nenhuma alteração deve permanecer gravada.", exception);
         }
-        target.credit(request.amount());
+    }
 
-        Transfer transfer = transferRepository.save(new Transfer(source, target, request.amount()));
-        movementRepository.save(new Movement(source, transfer, MovementType.DEBIT, request.amount(), source.getBalance()));
-        movementRepository.save(new Movement(target, transfer, MovementType.CREDIT, request.amount(), target.getBalance()));
-
-        eventPublisher.publishEvent(new TransferCompletedEvent(transfer.getId(), source.getId(), target.getId()));
-        return transfer;
+    private void markCurrentTransactionForRollback() {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+        }
     }
 
     private void validateRequest(TransferRequest request) {

@@ -81,6 +81,7 @@ public class ApiTokenAuthenticationFilter extends OncePerRequestFilter {
 
     private void writeUnauthorizedResponse(HttpServletResponse response) throws IOException {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setCharacterEncoding(java.nio.charset.StandardCharsets.UTF_8.name());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.getWriter().write("{\"status\":401,\"error\":\"Unauthorized\",\"messages\":[\"Token de autenticação inválido ou ausente\"]}");
     }

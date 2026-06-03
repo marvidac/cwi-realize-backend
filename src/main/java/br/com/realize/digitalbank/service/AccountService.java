@@ -7,6 +7,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 @Service
 public class AccountService {
@@ -19,8 +21,19 @@ public class AccountService {
 
     @Transactional
     public Account create(CreateAccountRequest request) {
-        Account account = new Account(request.customerName(), request.initialBalance());
-        return accountRepository.save(account);
+        try {
+            Account account = new Account(request.customerName(), request.initialBalance());
+            return accountRepository.save(account);
+        } catch (RuntimeException exception) {
+            markCurrentTransactionForRollback();
+            throw new PersistenceOperationException("Falha ao persistir a conta. Nenhuma alteração deve permanecer gravada.", exception);
+        }
+    }
+
+    private void markCurrentTransactionForRollback() {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+        }
     }
 
     @Transactional(readOnly = true)

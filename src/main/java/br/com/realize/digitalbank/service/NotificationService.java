@@ -12,6 +12,8 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 @Service
 public class NotificationService {
@@ -39,8 +41,19 @@ public class NotificationService {
         Transfer transfer = transferRepository.findById(event.transferId())
                 .orElseThrow(() -> new IllegalArgumentException("Transferência não encontrada: " + event.transferId()));
 
-        String message = "Transferência recebida com sucesso no valor de R$ " + transfer.getAmount();
-        notificationRepository.save(new Notification(targetAccount, transfer, message, NotificationStatus.SENT));
-        LOGGER.info("Notificação enviada para conta {}: {}", targetAccount.getId(), message);
+        try {
+            String message = "Transferência recebida com sucesso no valor de R$ " + transfer.getAmount();
+            notificationRepository.save(new Notification(targetAccount, transfer, message, NotificationStatus.SENT));
+            LOGGER.info("Notificação enviada para conta {}: {}", targetAccount.getId(), message);
+        } catch (RuntimeException exception) {
+            markCurrentTransactionForRollback();
+            throw new PersistenceOperationException("Falha ao persistir a notificação da transferência. Nenhuma alteração deve permanecer gravada.", exception);
+        }
+    }
+
+    private void markCurrentTransactionForRollback() {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+        }
     }
 }

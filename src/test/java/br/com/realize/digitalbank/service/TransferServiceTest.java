@@ -81,6 +81,28 @@ class TransferServiceTest {
     }
 
     @Test
+    void shouldWrapPersistenceFailureAndNotPublishEvent() {
+        Account source = account(1L, "Origem", "100.00");
+        Account target = account(2L, "Destino", "10.00");
+        when(accountRepository.findAllByIdInOrderByIdAscForUpdate(List.of(1L, 2L))).thenReturn(List.of(source, target));
+        when(transferRepository.save(any(Transfer.class))).thenAnswer(invocation -> {
+            Transfer transfer = invocation.getArgument(0);
+            ReflectionTestUtils.setField(transfer, "id", 99L);
+            return transfer;
+        });
+        when(movementRepository.save(any(Movement.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0))
+                .thenThrow(new RuntimeException("falha simulada na persistência"));
+
+        assertThatThrownBy(() -> transferService.transfer(new TransferRequest(1L, 2L, new BigDecimal("30.00"))))
+                .isInstanceOf(PersistenceOperationException.class)
+                .hasMessage("Falha ao persistir a transferência. Nenhuma alteração deve permanecer gravada.")
+                .hasCauseInstanceOf(RuntimeException.class);
+
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
     void shouldPersistDebitAndCreditMovements() {
         Account source = account(1L, "Origem", "100.00");
         Account target = account(2L, "Destino", "10.00");

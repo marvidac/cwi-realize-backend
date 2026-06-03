@@ -4,11 +4,14 @@ import br.com.realize.digitalbank.domain.Account;
 import br.com.realize.digitalbank.domain.User;
 import br.com.realize.digitalbank.repository.AccountRepository;
 import br.com.realize.digitalbank.repository.UserRepository;
+import br.com.realize.digitalbank.service.PersistenceOperationException;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 
@@ -29,8 +32,13 @@ public class DataInitializer {
     void createInitialData(AccountRepository accountRepository,
                            UserRepository userRepository,
                            PasswordEncoder passwordEncoder) {
-        createInitialAccounts(accountRepository);
-        createTestUser(userRepository, passwordEncoder);
+        try {
+            createInitialAccounts(accountRepository);
+            createTestUser(userRepository, passwordEncoder);
+        } catch (RuntimeException exception) {
+            markCurrentTransactionForRollback();
+            throw new PersistenceOperationException("Falha ao persistir os dados iniciais. Nenhuma alteração deve permanecer gravada.", exception);
+        }
     }
 
     private void createInitialAccounts(AccountRepository accountRepository) {
@@ -52,5 +60,11 @@ public class DataInitializer {
                 TEST_USERNAME,
                 passwordEncoder.encode(TEST_PASSWORD)
         ));
+    }
+
+    private void markCurrentTransactionForRollback() {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+        }
     }
 }

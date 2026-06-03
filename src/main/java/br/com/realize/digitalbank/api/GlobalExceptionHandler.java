@@ -5,6 +5,7 @@ import br.com.realize.digitalbank.service.AccountNotFoundException;
 import br.com.realize.digitalbank.service.InsufficientBalanceException;
 import br.com.realize.digitalbank.service.InvalidCredentialsException;
 import br.com.realize.digitalbank.service.InvalidTransferException;
+import br.com.realize.digitalbank.service.PersistenceOperationException;
 import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -50,5 +51,11 @@ public class GlobalExceptionHandler {
         return ErrorResponse.of(400, "Bad Request", List.of(
                 "Ordenacao invalida. Use um campo de Account, por exemplo: sort=id,asc ou sort=customerName,asc"
         ));
+    }
+
+    @ExceptionHandler(PersistenceOperationException.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public ErrorResponse handlePersistenceOperation(PersistenceOperationException exception) {
+        return ErrorResponse.of(500, "Internal Server Error", List.of(exception.getMessage()));
     }
 }
